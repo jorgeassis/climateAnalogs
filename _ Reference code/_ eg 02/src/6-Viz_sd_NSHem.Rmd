@@ -1,0 +1,389 @@
+---
+title: "NS Hemisphere visualize variability"
+author: "KE Lotterhos"
+date: "11/23/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+To use this code, set your working directory to the /src folder
+
+You will also have to update the paths below to be the paths to where the data is stored on your computer and where you want to output the results.
+
+```{r}
+
+
+#library(FNN)
+#library(ggplot2)
+#library(ggmap)
+#library(mapdata)
+#library(maps)
+
+code_dir <- "/src"
+setwd("code_dir")
+
+results_dir <- ("../results/") # you may have to create
+
+data_dir <- ("../Data/")
+
+dat1 <- fread(paste0(data_dir,"model/Temp_Arag_1800_2000.txt"), sep = ",")
+
+dat4.5 <- fread(paste0(data_dir,"model/Temp_Arag_2070_2100_RCP45.txt"), sep = ",")
+                
+dat8.5 <- fread(paste0(data_dir,"model/Temp_Arag_2070_2100_RCP85.txt"), sep = ",")
+
+dat_2000 <-   dat1 %>% filter(Year>1960 & Year<2010)
+dat_1800 <- dat1 %>% filter(Year<1850)
+
+setwd(code_dir)
+source("0-Novelty_Oceans_Functions.R")
+```
+
+## Set colors
+```{r}
+c1800 = "black"
+c2000 = "darkblue"
+c4.5 = "orange"
+c8.5 = "brown1"
+
+```
+
+
+## Combine climate envelope legend
+```{r, Combine climate envelope legend}
+## Create a 4-color legend
+legend_data <- data.frame(Year=c("1800","2000",
+                                 "2100 RCP 4.5",
+                                 "2100 RCP 8.5"),
+                          Color = adjustcolor(c(c1800,c2000, c4.5, c8.5), alpha=0.5),
+                          val=c(1,2,3,4)
+)
+
+
+
+g_leg <- ggplot(legend_data, aes(x=Year,y=val, fill=Year)) + geom_hex() + scale_fill_manual(name="Year",
+                  values=adjustcolor(c(c1800,c2000, c4.5, c8.5), alpha=0.5)) + theme(legend.position = "right", legend.text = element_text(size=20), legend.key.size = unit(0.5, "in"), legend.title = element_text(size=20))
+
+
+get_legend<-function(myggplot){
+  tmp <- ggplot_gtable(ggplot_build(myggplot))
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  legend <- tmp$grobs[[leg]]
+  return(legend)
+}
+
+legend <- get_legend(g_leg)
+```
+
+## Lat vs. SST
+```{r}
+
+all <- ggplot() + 
+  theme_classic() + 
+theme(axis.text.x = element_text(size=18), axis.text.y = element_text(size=18), axis.title = element_text(size=18), plot.title=element_text(size=16)) 
+#+  scale_y_continuous(
+#  labels = scales::number_format(accuracy = 0.1))
+
+g0 <- all + 
+  geom_hex(data= dat_1800, aes(Lat, SST), fill="black", alpha=0.5)  + ylim(-5,35) +
+  geom_hex(data= dat_2000, aes(Lat, SST), fill="darkblue", alpha=0.5) +
+  ggtitle("A) 1800 vs. 2000 SST") +  theme(axis.title.x = element_blank())
+
+g1 <- all +
+  geom_hex(data= dat_2000, aes(Lat, SST), fill="darkblue", alpha=0.5) + ylim(-5,35) + theme(axis.title.x = element_blank())
+#g1
+
+g2 <- g1 +  geom_hex(data= dat4.5, aes(Lat, SST), alpha=0.5, fill="orange") +
+  ggtitle("B)  2000 vs. 2100 RCP 4.5 SST")
+#g2
+
+g3 <- g1 +  geom_hex(data= dat8.5, aes(Lat, SST), alpha=0.5, fill="brown1") +
+  ggtitle("C)  2000 vs. 2100 RCP 8.5 SST")
+#g3
+```
+
+
+
+## Lat vs. Arag Sat State
+```{r}
+
+
+a0 <-  all +
+  geom_hex(data= dat_1800, aes(Lat, Arag), fill="black", alpha=0.5)  + 
+  geom_hex(data= dat_2000, aes(Lat, Arag), fill="darkblue", alpha=0.5) +
+  ggtitle("D) 1800 vs 2000 Arag") +  scale_y_continuous(limits = c(0.2,5.5), labels = scales::number_format(accuracy = 0.1)) + theme(axis.title.x = element_blank())
+
+#a0
+
+a1 <- all +
+  geom_hex(data= dat_2000, aes(Lat, Arag), fill="darkblue", alpha=0.5) +  scale_y_continuous(limits = c(0.2,5.5), labels = scales::number_format(accuracy = 0.1)) + theme(axis.title.x = element_blank())
+#a1
+
+a2 <- a1 +  geom_hex(data= dat4.5, aes(Lat, Arag), alpha=0.5, fill="orange") +
+  ggtitle("E) 2000 vs. 2100 RCP 4.5 Arag")
+#a2
+
+a3 <- a1 +  geom_hex(data= dat8.5, aes(Lat, Arag), alpha=0.5, fill="brown1") +
+  ggtitle("F) 2000 vs. 2100 RCP 8.5 Arag")
+#a3
+```
+
+## Lat vs. pH
+```{r}
+p0 <- all + 
+  geom_hex(data= dat_1800, aes(Lat, pH), fill="black", alpha=0.5) + 
+  geom_hex(data= dat_2000, aes(Lat, pH), fill="darkblue", alpha=0.5) +
+  ggtitle("G) 1800 vs 2000 pH") + scale_y_continuous(limits = c(7.2,8.75),
+  labels = scales::number_format(accuracy = 0.1))
+p0
+
+p1 <- all + 
+  geom_hex(data= dat_2000, aes(Lat, pH), fill="darkblue", alpha=0.5)  + scale_y_continuous(limits = c(7.2,8.75),
+  labels = scales::number_format(accuracy = 0.1))
+#p1
+
+p2 <- p1 +  geom_hex(data= dat4.5, aes(Lat, pH), alpha=0.5, fill="orange") +
+  ggtitle("H) 2000 vs. 2100 RCP 4.5 pH")
+#p2
+
+p3 <- p1 +  geom_hex(data= dat8.5, aes(Lat, pH), alpha=0.5, fill="brown1") +
+  ggtitle("I) 2000 vs. 2100 RCP 8.5 pH")
+#p3
+```
+
+
+```{r}
+pdf("../figures_hem/Lat_figs.pdf",
+    width=15, height=12)
+grid.arrange(g0, g2, g3, 
+             a0, a2, a3,
+             p0, p2, p3, legend,
+             nrow=3, ncol=4,
+             layout_matrix = rbind(c(1,2,3, 10), c(4,5,6, 10), c(7,8,9,10)),
+             widths = c(rep(12/3,3), 3), heights = rep(12/3,3))
+dev.off()
+```
+
+
+## Multiple variable plots
+
+* upper left: Temp vs Arag for N hemisphere, 1800 vs 2000
+* upper right: Temp vs Arag for N hemisphere, 2000 vs 2100
+* lower left: Temp vs pH for N hemisphere, 1800 vs 2000
+* lower right: Temp vs pH for N hemisphere, 2000 vs 2100
+
+(Repeat for S hemisphere)
+
+### Set up for S and N hemisphere envelopes
+
+This code needs to be run twice, once for the N hem and once for the S hem
+
+```{r, N hemisphere envelopes Arag}
+
+N_hem_1800 <- (dat_1800$Lat>=0)
+N_hem_2000 <- (dat_2000$Lat>=0)
+N_hem_4.5 <- (dat4.5$Lat>=0)
+N_hem_8.5 <- (dat8.5$Lat>=0)
+
+
+run_North = TRUE
+
+
+if(run_North==TRUE){
+  plotind_1800 = which(N_hem_1800)
+  plotind_2000 = which(N_hem_2000)
+  plotind_4.5 = which(N_hem_4.5)
+  plotind_8.5 = which(N_hem_8.5)
+}
+
+
+all2 <- ggplot() + theme_classic() +
+theme(axis.text.x = element_text(size=18), axis.text.y = element_text(size=18), axis.title = element_text(size=18), plot.title = element_text(size=16)) 
+
+```
+
+Aragonite vs SST N hemisphere
+
+```{r}
+
+
+e0N <-  all2 + geom_hex(data= dat_2000[plotind_2000,], aes(SST, Arag), fill=c2000, alpha=0.5) + labs(y="Aragonite Saturation State") + geom_hline(aes(yintercept=1), linetype =2) + scale_y_continuous(limits=c(0.2, 5.5),  labels = scales::number_format(accuracy = 0.1))
+#e0N
+
+e1N <- e0N +  geom_hex(data= dat_1800[plotind_1800,], aes(SST, Arag), fill=c1800, alpha=0.5) +
+  ggtitle("A) 1800 vs 2000, N. Hem") + 
+  annotate(geom="text", x=0, y=5, label="A) 1800 disappearing in 2000", adj=0, color="grey30") +
+  annotate(geom="text", x=20, y=1.3, label="Novel in 2000", adj=0, color=adjustcolor(c2000,0.5)) + 
+  geom_segment(aes(x=7, y = 4.8, xend=0, yend=4), color="grey30") + 
+  geom_segment(aes(x=7, y = 4.8, xend=20, yend=4), color="grey30") +
+  geom_segment(aes(x=20, y = 1.4, xend=11, yend=1.7), color=adjustcolor(c2000,0.5)) +
+  geom_segment(aes(x=20, y = 1.4, xend=23, yend=2.8), color=adjustcolor(c2000,0.5)) 
+#e1N
+
+e2N <- e0N +  geom_hex(data= dat4.5[plotind_4.5,], aes(SST, Arag), fill=c4.5, alpha=0.5) +
+  ggtitle("B) 2000 vs 2100 RCP 4.5, N. Hem") + 
+  annotate(geom="text", x=0, y=5, label="2000 disappearing in 2100 RCP 4.5", adj=0, color=adjustcolor(c2000,0.7)) + 
+  geom_segment(aes(x=7, y = 4.8, xend=0, yend=2.5), color=adjustcolor(c2000,0.7)) + 
+  geom_segment(aes(x=7, y = 4.8, xend=20, yend=3.5), color=adjustcolor(c2000,0.7)) +
+  annotate(geom="text", x=10, y=0.5, label="Novel in 2100 RCP 4.5", adj=0, color=adjustcolor(c4.5,0.9))  +
+  geom_segment(aes(x=15, y = 0.6, xend=11, yend=1.5), color=adjustcolor(c4.5,0.9)) +
+  geom_segment(aes(x=15, y = 0.6, xend=23, yend=2.5), color=adjustcolor(c4.5,0.9)) 
+#e2N  
+
+e3N <- e0N +  geom_hex(data= dat8.5[plotind_8.5,], aes(SST, Arag), fill=c8.5, alpha=0.5) +
+  ggtitle("C) 2000 vs 2100 RCP 8.5, N. Hem") + 
+  annotate(geom="text", x=0, y=5, label="2000 disappearing in 2100 RCP 8.5", adj=0, color=adjustcolor(c2000,0.7)) + 
+  geom_segment(aes(x=7, y = 4.8, xend=0, yend=2.2), color=adjustcolor(c2000,0.7)) + 
+  geom_segment(aes(x=7, y = 4.8, xend=20, yend=3.0), color=adjustcolor(c2000,0.7)) +
+  annotate(geom="text", x=12, y=0.2, label="Novel in 2100 RCP 8.5", adj=0, color=adjustcolor(c8.5,0.9))  +
+  geom_segment(aes(x=20, y = 0.3, xend=11, yend=1.3), color=adjustcolor(c8.5,0.9)) +
+  geom_segment(aes(x=20, y = 0.3, xend=23, yend=2.1), color=adjustcolor(c8.5,0.9)) 
+#e3N  
+```
+
+pH vs SST N hemisphere
+
+```{r, N hemisphere envelopes pH}
+
+
+p0N <- all2+ ylim(7.2,8.75) + geom_hex(data= dat_2000[plotind_2000,], aes(SST, pH), fill=c2000, alpha=0.5)
+#p0N
+
+p1N <- p0N +  geom_hex(data= dat_1800[plotind_1800,], aes(SST, pH), fill=c1800, alpha=0.5) +
+  ggtitle("D) 1800 vs 2000, N. Hem") + 
+  annotate(geom="text", x=7, y=8.7, label="1800 disappearing in 2000", adj=0, color="grey30") + 
+  geom_segment(aes(x=15, y = 8.65, xend=8, yend=8.4), color="grey30") + 
+  geom_segment(aes(x=15, y = 8.65, xend=23, yend=8.25), color="grey30") +
+  annotate(geom="text", x=15, y=7.6, label="Novel in 2000", adj=0, color=adjustcolor(c2000,0.5)) +
+  geom_segment(aes(x=15, y = 7.63, xend=3, yend=7.8), color=adjustcolor(c2000,0.5)) +
+  geom_segment(aes(x=15, y = 7.63, xend=21, yend=8.0), color=adjustcolor(c2000,0.5)) 
+#p1N
+
+p2N <- p0N +  geom_hex(data= dat4.5[plotind_4.5,], aes(SST, pH), fill=c4.5, alpha=0.5) +
+  ggtitle("E) 2000 vs 2100 RCP 4.5, N. Hem") + 
+  annotate(geom="text",  x=5, y=8.7, label="2000 disappearing in 2100 RCP 4.5", adj=0, color=adjustcolor(c2000,0.7)) + 
+  geom_segment(aes(x=15, y = 8.65, xend=8, yend=8.2), color=adjustcolor(c2000,0.7)) + 
+  geom_segment(aes(x=15, y = 8.65, xend=23, yend=8.1), color=adjustcolor(c2000,0.7)) +
+  annotate(geom="text",  x=15, y=7.6, label="Novel in 2100 RCP 4.5", adj=0, color=adjustcolor(c4.5,0.9))  +
+  geom_segment(aes(x=15, y = 7.63, xend=3, yend=7.6), color=adjustcolor(c4.5,0.9)) +
+  geom_segment(aes(x=15, y = 7.63, xend=21, yend=7.9), color=adjustcolor(c4.5,0.9)) 
+#p2N  
+
+p3N <- p0N +  geom_hex(data= dat8.5[plotind_8.5,], aes(SST, pH), fill=c8.5, alpha=0.5) +
+  ggtitle("F) 2000 vs 2100 RCP 8.5, N. Hem") + 
+  annotate(geom="text",  x=5, y=8.7, label="2000 disappearing in 2100 RCP 8.5", adj=0, color=adjustcolor(c2000,0.7)) +
+  geom_segment(aes(x=15, y = 8.65, xend=8, yend=8.2), color=adjustcolor(c2000,0.7)) + 
+  geom_segment(aes(x=15, y = 8.65, xend=23, yend=8.1), color=adjustcolor(c2000,0.7)) +
+  annotate(geom="text",  x=15, y=7.5, label="Novel in 2100 RCP 8.5", adj=0, color=adjustcolor(c8.5,0.9))  +
+  geom_segment(aes(x=15, y = 7.53, xend=3, yend=7.6), color=adjustcolor(c8.5,0.9)) +
+  geom_segment(aes(x=15, y = 7.53, xend=21, yend=7.8), color=adjustcolor(c8.5,0.9)) 
+#p3N
+```
+
+
+```{r}
+if(run_North==TRUE){filename="../figures_hem/envelopes_N_hem.pdf"}
+
+pdf(filename,
+    width=16, height=8)
+grid.arrange(e1N, e2N, e3N, 
+             p1N, p2N, p3N, legend,
+             nrow=2, ncol=4,
+             layout_matrix = rbind(c(1,2,3, 7), c(4,5,6, 7)),
+             widths = c(rep(13/3,3), 3), heights = c(4,4))
+dev.off()
+```
+
+## S hemisphere envelopes
+```{r, S hem envelopes}
+run_North = FALSE
+if(run_North==FALSE){
+  plotind_1800 = which(!N_hem_1800)
+  plotind_2000 = which(!N_hem_2000)
+  plotind_4.5 = which(!N_hem_4.5)
+  plotind_8.5 = which(!N_hem_8.5)
+}
+if(run_North==FALSE){filename="../figures_hem/envelopes_S_hem.pdf"}
+
+e0N <-  all2 + geom_hex(data= dat_2000[plotind_2000,], aes(SST, Arag), fill=c2000, alpha=0.5) + labs(y="Aragonite Saturation State") + geom_hline(aes(yintercept=1), linetype =2) + scale_y_continuous(limits=c(0.2, 5.5),  labels = scales::number_format(accuracy = 0.1))
+#e0N
+
+e1N <- e0N +  geom_hex(data= dat_1800[plotind_1800,], aes(SST, Arag), fill=c1800, alpha=0.5) +
+  ggtitle("A) 1800 vs 2000, S. Hem") + 
+  annotate(geom="text", x=0, y=5, label="A) 1800 disappearing in 2000", adj=0, color="grey30") +
+  annotate(geom="text", x=20, y=1.3, label="Novel in 2000", adj=0, color=adjustcolor(c2000,0.5)) + 
+  geom_segment(aes(x=7, y = 4.8, xend=-2, yend=4), color="grey30") + 
+  geom_segment(aes(x=7, y = 4.8, xend=20, yend=4), color="grey30") +
+  geom_segment(aes(x=20, y = 1.4, xend=11, yend=1.6), color=adjustcolor(c2000,0.5)) +
+  geom_segment(aes(x=20, y = 1.4, xend=23, yend=2.8), color=adjustcolor(c2000,0.5)) 
+#e1N
+
+e2N <- e0N +  geom_hex(data= dat4.5[plotind_4.5,], aes(SST, Arag), fill=c4.5, alpha=0.5) +
+  ggtitle("B) 2000 vs 2100 RCP 4.5, S. Hem") + 
+  annotate(geom="text", x=0, y=5, label="2000 disappearing in 2100 RCP 4.5", adj=0, color=adjustcolor(c2000,0.7)) + 
+  geom_segment(aes(x=7, y = 4.8, xend=-2, yend=2.5), color=adjustcolor(c2000,0.7)) + 
+  geom_segment(aes(x=7, y = 4.8, xend=20, yend=3.5), color=adjustcolor(c2000,0.7)) +
+  annotate(geom="text", x=10, y=0.5, label="Novel in 2100 RCP 4.5", adj=0, color=adjustcolor(c4.5,0.9))  +
+  geom_segment(aes(x=15, y = 0.6, xend=11, yend=1.15), color=adjustcolor(c4.5,0.9)) +
+  geom_segment(aes(x=15, y = 0.6, xend=23, yend=2.2), color=adjustcolor(c4.5,0.9)) 
+#e2N  
+
+e3N <- e0N +  geom_hex(data= dat8.5[plotind_8.5,], aes(SST, Arag), fill=c8.5, alpha=0.5) +
+  ggtitle("C) 2000 vs 2100 RCP 8.5, S. Hem") + 
+  annotate(geom="text", x=0, y=5, label="2000 disappearing in 2100 RCP 8.5", adj=0, color=adjustcolor(c2000,0.7)) + 
+  geom_segment(aes(x=7, y = 4.8, xend=0, yend=2.2), color=adjustcolor(c2000,0.7)) + 
+  geom_segment(aes(x=7, y = 4.8, xend=20, yend=3.0), color=adjustcolor(c2000,0.7)) +
+  annotate(geom="text", x=12, y=0.2, label="Novel in 2100 RCP 8.5", adj=0, color=adjustcolor(c8.5,0.9))  +
+  geom_segment(aes(x=20, y = 0.3, xend=11, yend=1.0), color=adjustcolor(c8.5,0.9)) +
+  geom_segment(aes(x=20, y = 0.3, xend=23, yend=2.1), color=adjustcolor(c8.5,0.9)) 
+#e3N  
+
+## ph ####
+
+
+p0N <- all2+ ylim(7.2,8.75) + geom_hex(data= dat_2000[plotind_2000,], aes(SST, pH), fill=c2000, alpha=0.5)
+#p0N
+
+p1N <- p0N +  geom_hex(data= dat_1800[plotind_1800,], aes(SST, pH), fill=c1800, alpha=0.5) +
+  ggtitle("D) 1800 vs 2000, S. Hem") + 
+  annotate(geom="text", x=7, y=8.7, label="1800 disappearing in 2000", adj=0, color="grey30") + 
+  geom_segment(aes(x=15, y = 8.65, xend=5, yend=8.25), color="grey30") + 
+  geom_segment(aes(x=15, y = 8.65, xend=23, yend=8.25), color="grey30") +
+  annotate(geom="text", x=15, y=7.6, label="Novel in 2000", adj=0, color=adjustcolor(c2000,0.5)) +
+  geom_segment(aes(x=15, y = 7.63, xend=7, yend=8.05), color=adjustcolor(c2000,0.5)) +
+  geom_segment(aes(x=15, y = 7.63, xend=25, yend=8.0), color=adjustcolor(c2000,0.5)) 
+#p1N
+
+p2N <- p0N +  geom_hex(data= dat4.5[plotind_4.5,], aes(SST, pH), fill=c4.5, alpha=0.5) +
+  ggtitle("E) 2000 vs 2100 RCP 4.5, S. Hem") + 
+  annotate(geom="text",  x=5, y=8.7, label="2000 disappearing in 2100 RCP 4.5", adj=0, color=adjustcolor(c2000,0.7)) + 
+  geom_segment(aes(x=15, y = 8.65, xend=8, yend=8.1), color=adjustcolor(c2000,0.7)) + 
+  geom_segment(aes(x=15, y = 8.65, xend=23, yend=8.1), color=adjustcolor(c2000,0.7)) +
+  annotate(geom="text",  x=15, y=7.6, label="Novel in 2100 RCP 4.5", adj=0, color=adjustcolor(c4.5,0.9))  +
+  geom_segment(aes(x=15, y = 7.63, xend=3, yend=7.9), color=adjustcolor(c4.5,0.9)) +
+  geom_segment(aes(x=15, y = 7.63, xend=21, yend=7.85), color=adjustcolor(c4.5,0.9)) 
+#p2N  
+
+p3N <- p0N +  geom_hex(data= dat8.5[plotind_8.5,], aes(SST, pH), fill=c8.5, alpha=0.5) +
+  ggtitle("F) 2000 vs 2100 RCP 8.5, S. Hem") + 
+  annotate(geom="text",  x=5, y=8.7, label="2000 disappearing in 2100 RCP 8.5", adj=0, color=adjustcolor(c2000,0.7)) +
+  geom_segment(aes(x=15, y = 8.65, xend=8, yend=8.1), color=adjustcolor(c2000,0.7)) + 
+  geom_segment(aes(x=15, y = 8.65, xend=23, yend=8.1), color=adjustcolor(c2000,0.7)) +
+  annotate(geom="text",  x=15, y=7.5, label="Novel in 2100 RCP 8.5", adj=0, color=adjustcolor(c8.5,0.9))  +
+  geom_segment(aes(x=15, y = 7.53, xend=3, yend=7.8), color=adjustcolor(c8.5,0.9)) +
+  geom_segment(aes(x=15, y = 7.53, xend=21, yend=7.8), color=adjustcolor(c8.5,0.9)) 
+
+### plot ####
+
+pdf(filename,
+    width=16, height=8)
+grid.arrange(e1N, e2N, e3N, 
+             p1N, p2N, p3N, legend,
+             nrow=2, ncol=4,
+             layout_matrix = rbind(c(1,2,3, 7), c(4,5,6, 7)),
+             widths = c(rep(13/3,3), 3), heights = c(4,4))
+dev.off()
+```

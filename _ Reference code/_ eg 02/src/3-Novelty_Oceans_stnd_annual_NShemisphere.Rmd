@@ -1,0 +1,515 @@
+---
+title: "NS Hemisphere Analysis"
+author: "KE Lotterhos"
+date: "10/27/2020"
+output: html_document
+---
+
+
+Based on basic code for calculating and mapping climatic novelty using the sigma dissimilarity metric. 
+* written by Colin Mahony
+* Supp Material of "A closer look at novel climates: new methods and insights at continental to landscape scales"
+
+# What this code does
+### Compare 1800 analog (A) to today surface (B), with today's surface variability (C)
+### Compare today surface analog (A) to 2100-RCP8.5 (B), with today's surface variability (C)
+### Compare today surface analog (A) to 2100-RCP4.5 (B), with today's surface variability (C)
+
+## This code also compares the converse (e.g. the current climate as B to the future climate as A) to assess disappearing climates
+
+This code uses the annnual climate normals and monthly ICV for the novelty calculation
+
+```{r}
+##################################
+#### System setup ####
+##################################
+## Specify location of data ####
+setwd("XXXX") 
+#setwd("~/Desktop/PostDoc/OceanClimateNovelty/")
+
+source("src/0-Novelty_Oceans_Functions.R")
+```
+
+```{r}
+##################################
+#### Read in the input data ####
+##################################
+
+# set path to data
+path <- "../Data/model/"
+
+dat1 <- fread(paste0(path,"Temp_Arag_1800_2000.txt"), sep = ",")
+dat4.5 <- fread(paste0(path,"Temp_Arag_2070_2100_RCP45.txt"), sep = ",")
+dat8.5 <- fread(paste0(path,"Temp_Arag_2070_2100_RCP85.txt"), sep = ",")
+
+ICV <- fread(paste0(path, "ICV_Temp_Arag_pH_1960_2020.txt"))
+
+results_path <- "../results/" # you may have to create this
+
+results_dir <- paste0(results_path, "HemisphereRestricted/")
+
+head(dat1)
+head(dat8.5)
+head(dat4.5)
+head(ICV)
+unique(dat1$Year)
+unique(dat8.5$Year)
+unique(dat4.5$Year)
+unique(ICV$Year)
+
+hist(c(dat1$Arag, dat8.5$Arag))
+hist(log10(c(dat1$Arag, dat8.5$Arag)))
+```
+
+## boxplot ICV
+```{r, boxplot ICV}
+pdf(paste0(results_dir, "ICV_Lat.pdf"), width=9, height=7)
+par(mfrow=c(3,1), mar=c(4,5,0.5,0.5), oma=c(2,0,0,0), las=0)
+
+lat <- sort(unique(ICV$Lat))
+length(lat)
+lat[1]
+lat[42]
+lat[80]
+lat[117]
+lat[158]
+ind <- c(1,42,80,117,158)
+lat_names=rep(NA, 169)
+lat_names[ind] <- lat[ind]
+lat_names[80] <- 0 #close enough
+
+boxplot(ICV$SST~ICV$Lat, col="cyan",  
+        #border = rgb(0,0,0,0.3),  outpch=20, outcol= rgb(0,0,0,0.3), outbg=rgb(0,0,0,0.3), 
+        ylab="", xlab="", names=lat_names, las=1, cex=1.2, outline=FALSE, border=rgb(0,0,0,0.5), lty=1)
+  mtext("SST", side=2, cex=1.5, line=3)
+
+boxplot(ICV$Arag~ICV$Lat, col="coral",
+        ylab="", xlab="", names=lat_names, las=1, cex=1.2, outline=FALSE, border=rgb(0,0,0,0.5), lty=1)
+  mtext("Arag.", side=2, cex=1.5, line=3)
+
+boxplot(ICV$pH ~ ICV$Lat, col="gold",
+        ylab="", xlab="", names=lat_names, las=1, cex=1.2, outline=FALSE, border=rgb(0,0,0,0.5), lty=1)
+  mtext("pH", side=2, cex=1.5, line=3)
+
+
+mtext("Latitude", side=1, outer=TRUE, cex=2)
+dev.off()
+```
+
+
+```{r}
+##################################
+#### Log-transform Arag ####
+##################################
+dat1$Arag <- log10(dat1$Arag)
+dat4.5$Arag <- log10(dat4.5$Arag)
+dat8.5$Arag <- log10(dat8.5$Arag)
+ICV$Arag <- log10(ICV$Arag)
+
+#  Aragonite saturation is a ratio variable; it is limited at zero and 
+# proportional changes are meaningful. The analysis uses raw values of 
+# aragonite saturation state. Under raw scaling, the difference between 1 and 2 
+# is equal to the difference between zero and one, which doesn’t reflect the 
+# meaning of the variable. Instead, the difference between 1 and 2 should 
+# be given the same significance as the difference between 0.5 and 1 (doubling vs halving). 
+# Log-transforming aragonite saturation state will produce this more meaningful 
+# proportional scaling.
+
+# More generally on the same topic: The need for proportional scaling is the 
+# reason why precipitation and other ratio variables (e.g. degree-days) are 
+# typically log-transformed in climate space analysis. In theory, all variables 
+# should be log-transformed to produce an environmental space where distances 
+# are comparable for different locations; however, in practice temperature 
+# doesn’t need to be log-transformed because it doesn’t vary across orders 
+# of magnitude, and in our case pH is already a log-scaled variable.
+
+```
+
+
+
+```{r}
+#--------------------------------
+#### 40-year climate normals ####
+#--------------------------------
+# for example, 1930 represents from 1/1/1925 to 12/31/1934.  
+dat_2000 <-   dat1 %>% filter(Year>1960 & Year<2010)
+dim(dat_2000)
+
+dat_1800 <- dat1 %>% filter(Year<1850)
+dim(dat_1800)
+
+dat_2100_8.5 <-   dat8.5 
+dat_2100_4.5 <-   dat4.5 
+
+sum(!complete.cases(dat_1800))
+sum(!complete.cases(dat_2000))
+sum(!complete.cases(dat_2100_4.5))
+sum(!complete.cases(dat_2100_8.5))
+sum(!complete.cases(ICV))
+
+# Calculate climate normals
+# Returns the mean climate for each station at each time
+norm_1800 <- calculate_normals_annual(dat_1800)
+norm_2000 <- calculate_normals_annual(dat_2000)
+norm_2100_8.5 <- calculate_normals_annual(dat_2100_8.5)
+norm_2100_4.5 <- calculate_normals_annual(dat_2100_4.5)
+
+head(norm_1800)
+dim(norm_1800)
+dim(norm_2000)
+dim(norm_2100_8.5)
+dim(norm_2100_4.5)
+```
+
+```{r}
+#--------------------------------  
+### data frame to link station number to Lat Long ####
+#--------------------------------
+head(dat8.5)
+stations <- unique(dat8.5$No)
+stationInfo = data.frame(stations=stations, lat=NA, long=NA)
+unik <- which(!duplicated(dat8.5$No))
+head(unik)
+stationInfo$lat <- dat8.5$Lat[unik]
+stationInfo$long <- dat8.5$Lon[unik]
+names(stationInfo)[1] <- "No"
+head(stationInfo)
+which(!complete.cases(stationInfo))
+
+#-------------------------------- 
+### ICV matrix
+head(ICV)  
+C <- ICV %>% select(No, SST, Arag, pH)
+head(C)
+#--------------------------------   
+```
+
+```{r}
+#---------------
+### Hemisphere Indexes ###
+# N. hemisphere
+N_hem <- which(stationInfo$lat>=0)
+S_hem <- which(stationInfo$lat<0)
+#---------------
+```
+
+
+# 1800 analog to today (Novelty)
+
+```{r}
+#--------------------------------  
+### 1800 analog to today (Novelty) ####
+# What are today's novel climates compared to 1800?
+# Novel climates are identified by comparing the 
+# future climate realization (B) for each gridpoint 
+# to the past (A) climate realizations (Williams)
+# RESTRICT BASELINE TO HEMISPHERE OF OBSERVATION
+#--------------------------------
+# A is baseline, the base that a station from B is compared to
+# If A is past and B is future, then degree of novelty
+# If A is future and B is past, then degree of disappearance
+# B will be subset to a particular station for analysis
+# C is the data frame used to calculate the ICV, will also be subset to a particular station for analysis
+
+
+A <- norm_1800
+# 1800 climate normals
+# Serves as the Baseline
+head(A)
+dim(A)
+
+# subset the 2000 data to the same stations as the 1800 data
+B <- norm_2000
+# 2000 climate normals 
+head(B)
+dim(B)
+# same columns as A
+
+# sanity check to make sure stations in right order
+identical(A$No, B$No) # should be true
+
+NN.sigma_1800_today_N <- loop_sigma_D(A[N_hem,], B[N_hem,], C, "_1800_today")
+NN.sigma_1800_today_S <- loop_sigma_D(A[S_hem,], B[S_hem,], C, "_1800_today")
+NN.sigma_1800_today <- rbind(NN.sigma_1800_today_N, NN.sigma_1800_today_S)
+head(NN.sigma_1800_today)
+hist(NN.sigma_1800_today$numPCs_1800_today)
+
+final_dat <- full_join(stationInfo, NN.sigma_1800_today,  by="No")
+head(final_dat)
+
+final_dat[which(is.infinite(final_dat$NN.sigma_1800_today)),]
+
+final_dat[which(!complete.cases(final_dat)),]
+
+identical(nrow(final_dat), nrow(stationInfo)) 
+# should be true, same number as stations as stationInfo
+
+# Visualize
+world <- map_data("world2")
+Plot_nonInt(final_dat$lat, final_dat$long, 
+            final_dat$NN.sigma_1800_today, world, "sigD novel 2000")
+
+# The NN.sigma_1800_today represents the novelty of today's
+# climate compared to 1800
+# NN.dist_1800_today represents the Mahalanobis distance from the climate
+# in today to it's nearest neighbor in all 1800 data
+# No--> NN.station_1800_today represents the station that was queried 2000 (B) 
+# and it's nearest data in the global reference NN.station_1800_today (1800, A)
+```
+
+# Today analog to 1800 Disappearance 
+```{r}
+#--------------------------------  
+### Today analog to 1800 Disappearance####
+# What are 1800 disappearing climates?
+# disappearing climates are identified by comparing
+# each past gridpoint (A) to all future climate realizations (B)
+#--------------------------------
+calc_sigma_D(A, B, C, 1)
+calc_sigma_D(B, A, C, 1)
+
+B <- norm_1800
+A <- norm_2000
+identical(A$No, B$No) # should be true
+identical(sort(A$No), A$No) # should be true
+
+
+NN.sigma_today_1800_N <- loop_sigma_D(A[N_hem,], B[N_hem,], C, "_today_1800")
+NN.sigma_today_1800_S <- loop_sigma_D(A[S_hem,], B[S_hem,], C, "_today_1800")
+NN.sigma_today_1800 <- rbind(NN.sigma_today_1800_N,
+                             NN.sigma_today_1800_S)
+
+head(NN.sigma_today_1800)
+
+final_dat2 <- full_join(final_dat, NN.sigma_today_1800)
+head(final_dat2)
+dim(final_dat2)
+Plot_nonInt(final_dat2$lat, final_dat2$long, 
+            final_dat2$NN.sigma_today_1800, world, "sigD dis 2000")
+
+# The NN.sigma_1800_disappear represents the novelty of 1800
+# compared to today (e.g disappearing climates)
+# NN.dist_1800_disappear represents the Mahalanobis distance from the climate
+# in 1800 to it's nearest neighbor in all of today's data
+# No--> NN.station_1800_disappear represents the the station that was queried 1800 (B) 
+# and it's nearest data in the global reference NN.station_1800_disappear (2000, A)
+```
+
+# Add the info for lat/long of nearest neighbors (1800 to today)
+```{r}
+stationInfo2 <- stationInfo
+names(stationInfo2) <- paste0(names(stationInfo2),"_1800_today")
+head(stationInfo2)
+dim(stationInfo)
+names(stationInfo2)[1] <-"NN.station_1800_today"
+final_dat3 <- left_join(final_dat2, stationInfo2)
+dim(final_dat3)
+head(final_dat3)
+tail(final_dat3)
+
+# Should both be 0
+sum(!complete.cases(final_dat2))
+sum(!complete.cases(final_dat3))
+head(final_dat3[!complete.cases(final_dat3),])
+summary(final_dat3, NN.station_today_1800)
+
+
+final_dat3$latshift_1800_today <- NA
+condN <- which(final_dat3$lat>0)
+final_dat3$latshift_1800_today[condN] <- final_dat3$lat[condN] - 
+  final_dat3$lat_1800_today[condN]
+condS <- which(final_dat3$lat<0)
+final_dat3$latshift[condS] <- -1*(final_dat3$lat[condS] - 
+                              final_dat3$lat_1800_today[condS])
+hist(final_dat3$latshift_1800_today)
+
+```
+
+```{r}
+
+write.csv(final_dat3, paste0(results_dir, "1800base_2000_novelty_NShemrestrict.csv"))
+final_dat4 <- final_dat3
+```
+
+
+# Today analog to 2100 RCP 8.5 (Novelty) 
+```{r}
+identical(norm_2000$No, norm_2100_8.5$No)
+
+A1 <- norm_2000
+# 1970-2000 climate normals
+head(A1)
+dim(A1)
+
+B1 <- norm_2100_8.5
+# 2070-2100
+head(B1)
+dim(B1)
+# same columns as A
+
+# sanity check to make sure stations in right order
+identical(A1$No, B1$No) # should be true
+identical(A1$No, sort(A1$No)) # should also be true
+
+# C is the same defined above
+NN.sigma_today_2100_8.5_N <- loop_sigma_D(A1[N_hem,], B1[N_hem,], C, "_today_2100_8.5")
+# C is the same defined above
+NN.sigma_today_2100_8.5_S <- loop_sigma_D(A1[S_hem,], B1[S_hem,], C, "_today_2100_8.5")
+NN.sigma_today_2100_8.5 <- rbind(NN.sigma_today_2100_8.5_N, 
+                                 NN.sigma_today_2100_8.5_S)
+
+
+which(is.infinite(NN.sigma_today_2100_8.5$NN.sigma_today_2100_8.5))
+which(is.na(NN.sigma_today_2100_8.5$NN.sigma_today_2100_8.5))
+
+final_dat5 <- full_join(NN.sigma_today_2100_8.5, final_dat4, by="No")
+head(final_dat5)
+
+dim(final_dat5)
+stationInfo5 <- stationInfo
+names(stationInfo5) <- paste0(names(stationInfo),"_today_2100_8.5")
+names(stationInfo5)[1] <- "NN.station_today_2100_8.5"
+head(stationInfo5)
+final_dat6 <- left_join(final_dat5, stationInfo5)
+dim(final_dat6)
+head(final_dat6)
+
+# Visualize
+Plot_nonInt(final_dat6$lat, final_dat6$long, 
+            final_dat6$NN.sigma_today_2100_8.5, world, "sigma nov 2100 8.5")
+```
+
+# 2100 RCP 8.5 to today, what are today's climates that  will disappear in 2100 RCP 8.5?
+```{r}
+#--------------------------------  
+### 2100 RCP 8.5 to today, what are today's climates that ####
+### will disappear in 2100 RCP 8.5?
+#--------------------------------
+
+NN.sigma_2100_8.5_today_N <- loop_sigma_D( B1[N_hem,], A1[N_hem,], C, "_2100_8.5_today")
+NN.sigma_2100_8.5_today_S <- loop_sigma_D( B1[S_hem,], A1[S_hem,], C, "_2100_8.5_today")
+NN.sigma_2100_8.5_today <- rbind(NN.sigma_2100_8.5_today_N, NN.sigma_2100_8.5_today_S)
+
+
+final_dat7 <- full_join(NN.sigma_2100_8.5_today, final_dat6, by="No")
+head(final_dat7)
+Plot_nonInt(final_dat7$lat, final_dat7$long, 
+            final_dat7$NN.sigma_2100_8.5_today, world, "sigma dis. 2000 in 2100 8.5")
+
+final_dat8 <- final_dat7
+```
+# 2100 RCP 4.5 against today (novelty)
+```{r}
+#--------------------------------  
+### 2100 RCP 4.5 against today (novelty) ####
+#--------------------------------
+identical(norm_2000$No, norm_2100_4.5$No)
+
+# A1 the same as above
+
+B2 <- norm_2100_4.5
+# 2070-2100
+head(B2)
+dim(B2)
+# same columns as A
+
+# sanity check to make sure stations in right order
+identical(A1$No, B2$No) # should be true
+identical(A1$No, sort(A1$No)) # should also be true
+
+# C is the same defined above
+NN.sigma_today_2100_4.5_N <- loop_sigma_D(A1[N_hem,], B2[N_hem,], C, "_today_2100_4.5")
+NN.sigma_today_2100_4.5_S <- loop_sigma_D(A1[S_hem,], B2[S_hem,], C, "_today_2100_4.5")
+NN.sigma_today_2100_4.5 <- rbind(NN.sigma_today_2100_4.5_N, NN.sigma_today_2100_4.5_S)
+
+which(is.infinite(NN.sigma_today_2100_4.5$NN.sigma_today_2100_4.5))
+which(is.na(NN.sigma_today_2100_4.5$NN.sigma_today_2100_4.5))
+
+
+final_dat9 <- full_join(NN.sigma_today_2100_4.5, final_dat8, by="No")
+head(final_dat9)
+
+
+# Visualize
+Plot_nonInt(final_dat9$lat, final_dat9$long, 
+            final_dat9$NN.sigma_today_2100_4.5, world, "sig nov 2100 4.5")
+
+
+stationInfo9 <- stationInfo
+names(stationInfo9) <- paste0(names(stationInfo),"_today_2100_4.5")
+names(stationInfo9)[1] <- "NN.station_today_2100_4.5"
+head(stationInfo9)
+final_dat10 <- left_join(final_dat9, stationInfo9)
+dim(final_dat10)
+head(final_dat10)
+```
+
+
+# today against 2100 RCP 4.5 (disappearing climate)
+```{r}
+#--------------------------------  
+### today against 2100 RCP 4.5 (disappearing climate) ####
+#--------------------------------
+NN.sigma_2100_4.5_today_N <- loop_sigma_D(B2[N_hem,], A1[N_hem,], C, "_2100_4.5_today")
+NN.sigma_2100_4.5_today_S <- loop_sigma_D(B2[S_hem,], A1[S_hem,], C, "_2100_4.5_today")
+NN.sigma_2100_4.5_today <- rbind(NN.sigma_2100_4.5_today_N, NN.sigma_2100_4.5_today_S)
+
+
+which(is.infinite(NN.sigma_2100_4.5_today$NN.sigma_2100_4.5_today))
+which(is.na(NN.sigma_2100_4.5_today$NN.sigma_2100_4.5_today))
+
+
+final_dat11 <- full_join(NN.sigma_2100_4.5_today, final_dat10, by="No")
+head(final_dat11)
+
+# Visualize
+Plot_nonInt(final_dat11$lat, final_dat11$long, 
+            final_dat11$NN.sigma_2100_4.5_today, world, "sigma dis. 2000 in 2100 4.5")
+
+final_dat12 <- final_dat11
+dim(final_dat12)
+head(final_dat12)
+
+sum(!complete.cases(final_dat12))
+```
+
+```{r}
+### Final dataframe ####
+dat_Nov <- final_dat12
+### Write to file ####
+write.csv(final_dat12, paste0(results_dir, "SigmaD_Hem.csv"), row.names = FALSE)
+
+head(dat_Nov)
+for_liqing <- data.frame(No=dat_Nov$No, lat=dat_Nov$lat,long=dat_Nov$long,
+                         A=dat_Nov$NN.sigma_today_1800, 
+                         B=dat_Nov$NN.sigma_1800_today, 
+                         C=dat_Nov$NN.sigma_2100_4.5_today, 
+                         D=dat_Nov$NN.sigma_today_2100_4.5, 
+                         E=dat_Nov$NN.sigma_2100_8.5_today, 
+                         F=dat_Nov$NN.sigma_today_2100_8.5)
+write.csv(for_liqing,  paste0(results_dir,"SigmaD_Hem_plot1.csv"), row.names=FALSE)
+
+for_liqing_Md <- data.frame(No=dat_Nov$No, lat=dat_Nov$lat,long=dat_Nov$long,A=dat_Nov$NN.Mdist_today_1800, B=dat_Nov$NN.Mdist_1800_today, C=dat_Nov$NN.Mdist_2100_4.5_today, D=dat_Nov$NN.Mdist_today_2100_4.5, E=dat_Nov$NN.Mdist_2100_8.5_today, F=dat_Nov$NN.Mdist_today_2100_8.5)
+write.csv(for_liqing_Md,  paste0(results_dir,"SigmaD_Hem_plot2.csv"), row.names=FALSE)
+```
+
+# Calculate percentages
+```{r}
+### Calculate percentages ####  
+N <- nrow(dat_Nov)  
+
+calc_perc <- function(x, descrip){
+  print(paste("Percent of cells with moderate dissimilarity for", descrip,":", 
+              round(sum(x>2 & x<4)/N,3)*100, sep=" "))
+  print(paste("Percent of cells with extreme dissimilarity for", descrip,":", 
+              round(sum(x>4)/N, 3)*100, sep=" "))
+}
+
+calc_perc(dat_Nov$NN.sigma_today_1800, "1800 disappearing in 2000")
+calc_perc(dat_Nov$NN.sigma_1800_today, "Novel climates in 2000 since 1800")
+calc_perc(dat_Nov$NN.sigma_2100_4.5_today, "2000 disappearing in 2100 4.5")
+calc_perc(dat_Nov$NN.sigma_today_2100_4.5, "Novel climates in 2100 4.5 since 2000")
+calc_perc(dat_Nov$NN.sigma_2100_8.5_today, "2000 disappearing in 2100 8.5")
+calc_perc(dat_Nov$NN.sigma_today_2100_8.5, "Novel climates in 2100 8.5 since 2000")
+
+```

@@ -1,0 +1,273 @@
+---
+title: "Illustrate Novelty"
+author: "KE Lotterhos"
+date: "10/28/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(clusterGeneration)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+source("0-Novelty_Oceans_Functions.R")
+```
+
+
+```{r, functions}
+#A <- base
+#B <- site1_future
+#C <- site1_ICV
+#whichStation=1
+
+sigmaDmakeplot <- function(A, B, C, whichStation){
+  C.id <- C$No
+  proxy <- B$No
+  length(proxy)
+  proxy2 <- sort(unique(proxy))
+  if(!identical(proxy, proxy2)){break}
+ # Principal component truncation rule
+  trunc.SDs <- 0.1 #truncation 
+
+  j <- whichStation
+ ## Select data relevant to ICV proxy j
+    Bj <- B[which(proxy==j),]   # set of data from station j
+    # select locations for which ICV proxy j is the closest ICV proxy. 
+    Cj <- C[which(C.id==j),]    # reference period ICV at ICV proxy j
+    Cj.sd <- apply(Cj,2,sd, na.rm=T)  #standard deviation of interannual variability in each climate variable, ignoring missing years
+    #standard deviation of variability in each climate 
+    # variable, ignoring missing years
+    A.prime <- sweep(A[,-1],MARGIN=2,Cj.sd[-1],`/`) #standardize the reference ICV
+    # a <- matrix(c(1,2,3,4,5,6), nrow=2)
+    # sweep(a, MARGIN =2, STATS=c(2,3,4)) # subtracts STATs from each column
+    # sweep(a, MARGIN =2, STATS=c(2,3,4), FUN=`/`) # divides each column by STATS
+    Bj.prime <- sweep(Bj[,-1],MARGIN=2,Cj.sd[-1],`/`) #standardize the analog pool    
+    Cj.prime <- sweep(Cj[,-1],MARGIN=2,Cj.sd[-1],`/`) #standardize the projected future conditions of grid cells represented by ICV proxy j
+    colnames(Cj.prime) <- colnames(A.prime)
+    ## Step 2: Extract the principal components (PCs) of the reference period ICV 
+    # and project all data onto these PCs
+    PCA <- prcomp(Cj.prime[!is.na(apply(Cj.prime,1,mean)),])   
+    # Principal components analysis. The !is.na(apply(...)) term is there 
+    # simply to select all years with complete observations in all variables. 
+    PCA$rotation
+
+ (PCs <- max(c(which(unlist(summary(PCA)[1])>trunc.SDs),1)))
+    # find the number of PCs to retain using the PC truncation 
+    # rule of eigenvector stdev > the truncation threshold
+    X <- as.data.frame(predict(PCA,A.prime))   # X is new baseline
+    # project the analog pool onto the PCs
+    head(X)
+    
+    Yj <- as.data.frame(predict(PCA,Bj.prime)) 
+    # project the queried location onto the PCs
+    
+    Zj <- as.data.frame(predict(PCA,Cj.prime)) 
+    # project the reference ICV onto the PCs
+    ## Step 3a: express PC scores as standardized anomalies of reference interannual variability 
+    Zj.sd <- apply(Zj,2,sd, na.rm=T)     
+    #standard deviation of 1951-1990 interannual variability in each principal component, ignoring missing years
+    #Zj.sd
+    X.prime <- sweep(X,MARGIN=2,Zj.sd,`/`) # standardized baseline
+    #standardize the analog pool  
+    #head(X.prime)
+    Yj.prime <- sweep(Yj,MARGIN=2,Zj.sd,`/`) 
+    Zj.prime <- sweep(Zj, MARGIN=2, Zj.sd,`/`)
+    
+    #plot(X.prime[,1], X.prime[,2], xlim=c(-60, 20)) # analog
+    #points(Zj.prime[,1], Zj.prime[,2], pch=19, col=rgb(1,0,0, 0.5)) # reference ICV
+    #points(Yj.prime[,1], Yj.prime[,2], pch=19, col=rgb(0,1,0)) # future conditions
+    #standardize the projected conditions   
+    #Yj.prime
+    ## Step 3b: find the sigma dissimilarity of each projected condition with 
+    # its best analog (Euclidean nearest neighbour) in the observed analog pool.
+    #X.prime <- X.prime[complete.cases(X.prime),] # standardized baseline
+    nnd <- get.knnx(data=X.prime[,1:PCs],
+                    query=Yj.prime[,1:PCs],
+                    k=1,algorithm="brute")
+    NN.dist <- as.vector(nnd[[2]]) 
+    # Euclidean nearest neighbour distance in the z-standardized PCs of 
+    # interannual climatic variability, i.e. the Mahalanobian nearest neighbour. 
+    NN.chi <- pchi(NN.dist,PCs, rel.tol=.Machine$double.eps^0.8) 
+    # percentile of the nearest neighbour 
+    # increase the precision with 'rel.tol' #(default is ^0.5) to help with rounding error issues
+    # distance on the chi distribution with degrees of freedom 
+    # equaling the dimensionality of the distance measurement (PCs)
+    if(NN.chi>=(1-1e-16)){NN.chi=1-1e-16}
+      # sometimes with rounding error the NN.chi is printed as 1 but so close to 1 that
+      # small changes in the decimal place equal large changes in sigma.
+      # Also, if NN.chi equals 1 exactly than NN.sigma is infinite
+      # this slight transformation gives the largest possible value of NN.sigma
+    NN.sigma <- qchi(NN.chi,1) 
+    # values of the chi percentiles on a standard half-normal distribution (chi distribution with one degree of freedom)
+    if(NN.dist>9){NN.sigma <- qchi(1-1e-16,1) }
+      # there are still issues with rounding error in the tail of the chi squared distribution
+      # see my notebook post in the manuscript draft about this
+    NN.station <- A$No[nnd$nn.index]
+
+    #par(mar=c(4,4,1,1), mfrow=c(2,2))
+    
+    scale=20
+    n = nrow(PCA$rotation)
+    
+    # plot first and second PC
+    x <- c(X.prime[,1], Yj.prime[1,1], Zj.prime[,1])
+    y <- c(X.prime[,2], Yj.prime[1,2], Zj.prime[,2])
+  
+    ###################
+    # normal plot ####
+    plot(A[,2], A[,3], col=adjustcolor("grey", 0.5), bty="l",
+         las=1,
+         xlab="Climate variable X1", ylab="Climate variable X2", ylim=c(-8, 8))
+    cond1 <- A[,2]<0 & A[,3]<0
+    cond2 <- A[,2]>0 & A[,3]>0
+    points(A[cond1,2], A[cond1,3], col=NA, bg=adjustcolor("darkgrey", 0.5), pch=21)
+    points(A[cond2,2], A[cond2,3], col=adjustcolor("grey",0.5), bg=adjustcolor("lightgrey", 0.5), pch=21)
+    
+      # base
+    points(C[,2], C[,3], col=adjustcolor("magenta", 0.3))
+      # ICV
+    points(B[,2], B[,3], col="blue", pch=19)
+      # focal station
+    points(A[nnd$nn.index, 2], A[nnd$nn.index,3], col="black", bg="green", pch=23)
+    #################### 
+  
+    ## PC-rotated plot ####
+    plot(X.prime[,1], X.prime[,2],
+         xlab="PC1", ylab="PC2", bty="l", las=1, col=adjustcolor("grey", 0.5),
+         xlim=c(min(c(x, PCA$rotation[1:n,1]*PCA$sdev[1]*scale)), 
+                max(c(x, PCA$rotation[1:n,1]*PCA$sdev[1]*scale))),
+         ylim=c(min(c(y,(PCA$rotation[1:n,2]*PCA$sdev[2]*scale))),
+                max(c(y,(PCA$rotation[1:n,2]*PCA$sdev[2]*scale))))
+         )
+    points(X.prime[cond1,1], X.prime[cond1,2], col=NA, bg=adjustcolor("darkgrey", 0.5), pch=21)
+    points(X.prime[cond2,1], X.prime[cond2,2], col=adjustcolor("grey",0.5), bg=adjustcolor("lightgrey", 0.5), pch=21)
+    
+    # Add ICV
+    points(Zj.prime[,1], Zj.prime[,2], col=adjustcolor("magenta", 0.3), cex=1)
+    
+    # Add focal station
+    points(Yj.prime[1,1], Yj.prime[1,2], col="blue", pch=19, cex=1)
+    
+    # Add NN
+    points(X.prime[nnd$nn.index,1], X.prime[nnd$nn.index,2], col=adjustcolor("black",0.8), bg=adjustcolor("green",0.7), pch=23, cex=1)
+    Arrows(x0=rep(0, 6), y0=rep(0, 6), 
+           x1=(PCA$rotation[1:n,1]*PCA$sdev[1]*scale), 
+           y1=(PCA$rotation[1:n,2]*PCA$sdev[2]*scale),
+           code=2, col=adjustcolor("black", 0.2), arr.type="curved")
+    text(x=(PCA$rotation[1:n,1]*PCA$sdev[1]*scale), 
+         y=(PCA$rotation[1:n,2]*PCA$sdev[2]*scale), 
+         labels=rownames(PCA$rotation)[1:6], col=adjustcolor("black",0.8), adj=0.5)
+
+    #xa <- par("usr")[1] + (par("usr")[2]-par("usr")[1])*0.1
+    #ya <- par("usr")[4] - (par("usr")[4]-par("usr")[3])*0.1
+    #text(xa, ya, "A",  cex=2) 
+    return(data.frame(NN.sigma, NN.station, NN.Mdist=NN.dist, num_PCs=PCs))
+}
+```
+
+
+```{r, create base}
+
+cov <- matrix(c(1,0.8,0.8,2), nrow=2)
+
+set.seed(23428)
+cov1 <- genPositiveDefMat(2,covMethod="unifcorrmat" )
+cov1
+
+base <- data.frame(No = 1:5000, X1 = NA, X2=NA)
+
+set.seed(1029301)
+base[,2:3] <- data.frame(mvrnorm(5000, mu=c(0,0), Sigma=cov1$Sigma))
+head(base)
+
+head(base)
+```
+
+```{r, first example} 
+
+site1_future <- data.frame( No=1, X1=5, X2=-5)
+site1_future
+cov <- cov1$Sigma/50
+  # divide by 5 gives NN.sigma of 2.8
+  # Divide by 2 gives NN.sigma of 1.5
+  # divide by 10 gives NN.sigma of 4.2
+  # divdie by 20 gives NN.sigma of 3.5
+  # divide by 50 gives 5.8
+set.seed(913234)
+site1_climate <- mvrnorm(100, mu=as.numeric(site1_future[1,2:3]), Sigma=cov)
+
+head(site1_climate)
+site1_ICV <- data.frame(No=1,
+                        X1=site1_climate[,1] - site1_future[1,2], 
+                        X2=site1_climate[,2] - site1_future[1,3]
+                        )
+plot(site1_climate[,2], site1_ICV[,3]) # should be 1:1 line
+
+par(mfrow=c(1,1))
+plot(base[,2], base[,3]
+                    , xlim=c(-10, 10), ylim=c(-10,10))
+points(site1_climate, col="pink")
+points(site1_ICV[,2:3], col="pink")
+
+
+site1_ICV <- data.frame(No=1,
+                        X1=site1_climate[,1],
+                        X2=site1_climate[,2] 
+                        )
+
+
+
+### Finally make the plot ####
+pdf("../figures/EXAMP_largeSigma.pdf", width=6, height = 4)
+  par(mfrow=c(1,2), mar=c(4,4,1,1))
+  a <- sigmaDmakeplot(base, site1_future,site1_ICV,1)
+dev.off()
+round(a$NN.sigma,2)
+
+# 
+```
+
+
+One variable higher variance than the other
+```{r}
+cov <- cov1$Sigma/4 
+cov[1,2] <- 0#cov[1,2]*-1#/2
+cov[2,1] <- 0#cov[2,1]*-1
+cov[2,2] <- cov[2,2]*4
+
+set.seed(913236)
+site1_climate <- mvrnorm(100, mu=as.numeric(site1_future[1,2:3]), Sigma=cov)
+#plot(base[,2], base[,3]
+#                    , xlim=c(-10, 10), ylim=c(-10,10))
+#points(site1_climate, col="pink")
+site1_ICV <- data.frame(No=1,
+                        X1=site1_climate[,1],
+                        X2=site1_climate[,2]
+                        )
+
+pdf("../figures/EXAMP_smallSigma.pdf", width=6, height = 4)
+  par(mfrow=c(1,2), mar=c(4,4,1,1))
+  b <- sigmaDmakeplot(base, site1_future,site1_ICV,1)
+  dev.off()
+round(b$NN.sigma,2)
+
+pdf("../figures/EXAMP_legend.pdf", width=6, height = 3)
+  plot(0,0, xlim=c(0,10), ylim=c(0,10))
+  legend(0,10, c("Baseline (today's climate)",
+                "Focal station (future climate)", 
+                "Climate variability at focal station",
+                "Nearest neighbor in baseline"), 
+         col=c("grey", "blue", "magenta", "black"), 
+         pch=c(1, 19, 1, 23), 
+         pt.bg=c(NA, NA, NA, "green"), bty="n")
+dev.off()
+    
+
+```
