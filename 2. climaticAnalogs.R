@@ -4,24 +4,6 @@
 #
 # ----------------------------------------------------------------------
 
-# Main references:
- 
-# https://www.pnas.org/doi/10.1073/pnas.0606292104
-# https://pubmed.ncbi.nlm.nih.gov/28145063/
-# https://esajournals.onlinelibrary.wiley.com/doi/10.1890/070037
-# https://reader.elsevier.com/reader/sd/pii/S2590332221006023?token=0880C0F541F28588CC91307246A7FE2632A408AD7ABB7D548B270CDCFD487C5203D88F6921DF5651A9F5FE043756E658&originRegion=eu-west-1&originCreation=20230512120846
-# https://www.sciencedirect.com/science/article/pii/S2590332221006023?via%3Dihub#appsec2
-# https://www.nature.com/articles/s41467-019-08540-3
-# https://d-nb.info/1155721160/34
-# https://iopscience.iop.org/article/10.1088/1748-9326/acc2d4
-# https://onlinelibrary.wiley.com/doi/10.1111/gcb.13645
-# https://onlinelibrary.wiley.com/doi/full/10.1111/gcb.13645
-# https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8390509/
-# https://www.nature.com/articles/s41598-021-94872-4
-# https://www.cell.com/one-earth/pdf/S2590-3322%2821%2900602-3.pdf
-
-# ------------------
-
 closeAllConnections()
 rm(list=(ls()))
 gc(reset=TRUE)
@@ -42,6 +24,8 @@ resultsFolder <- "/Volumes/Dropbox/Dropbox/Manuscripts/Aquaculture exposure to p
 
 BaselinePeriod <- 2010:2018
 FuturePeriod <- 2091:2100
+
+forceMonotonocity <- TRUE
 
 # G1 
 # predictors <- c("Nitrate Surface Mean","OceanTemperature Surface Max","Salinity Surface Mean")
