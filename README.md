@@ -12,7 +12,7 @@ Climate data are openly provided by the E.U. Copernicus Marine Service at https:
 
 ## Authors
 
-* **Jorge Assis** @ [Bears Studio](https://www.biodiversitydatascience.com)
+* **Jorge Assis** @ [Biodiversity Data Science](https://www.biodiversitydatascience.com)
 
 ## License
 
